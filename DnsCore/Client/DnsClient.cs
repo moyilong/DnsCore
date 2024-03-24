@@ -1,11 +1,11 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
+using DnsCore.Internal;
 using DnsCore.Model;
 
 namespace DnsCore.Client;
@@ -81,7 +81,7 @@ public sealed class DnsClient : IDisposable, IAsyncDisposable
 
     private async ValueTask SendRequest(DnsRequest request, CancellationToken cancellationToken)
     {
-        var buffer = ArrayPool<byte>.Shared.Rent(DnsDefaults.MaxUdpMessageSize);
+        var buffer = DnsBufferPool.Rent(DnsDefaults.MaxUdpMessageSize);
         try
         {
             var len = request.Encode(buffer);
@@ -89,14 +89,14 @@ public sealed class DnsClient : IDisposable, IAsyncDisposable
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(buffer);
+            DnsBufferPool.Return(buffer);
         }
     }
 
     private async Task ReceiveResponses(CancellationToken cancellationToken)
     {
         await Task.Yield();
-        var buffer = ArrayPool<byte>.Shared.Rent(DnsDefaults.MaxUdpMessageSize);
+        var buffer = DnsBufferPool.Rent(DnsDefaults.MaxUdpMessageSize);
         try
         {
             while (true)
@@ -107,7 +107,7 @@ public sealed class DnsClient : IDisposable, IAsyncDisposable
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(buffer);
+            DnsBufferPool.Return(buffer);
         }
     }
 
