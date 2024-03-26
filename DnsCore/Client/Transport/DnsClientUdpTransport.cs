@@ -7,14 +7,34 @@ using DnsCore.Common;
 
 namespace DnsCore.Client.Transport;
 
-internal sealed class DnsClientUdpTransport(EndPoint remoteEndPoint) : DnsClientSocketTransport(remoteEndPoint, SocketType.Dgram, ProtocolType.Udp)
+internal sealed class DnsClientUdpTransport : DnsClientSocketTransport
 {
-    public override async ValueTask Send(DnsTransportMessage requestMessage, CancellationToken cancellationToken)
+    private readonly Socket _socket;
+
+    public DnsClientUdpTransport(EndPoint remoteEndPoint) : base(remoteEndPoint, SocketType.Dgram, ProtocolType.Udp)
     {
-        await EnsureConnected(cancellationToken);
+        _socket = CreateSocket();
+        _socket.Connect(remoteEndPoint);
+    }
+
+    public override ValueTask DisposeAsync()
+    {
         try
         {
-            await Socket.SendAsync(requestMessage.Buffer, SocketFlags.None, cancellationToken);
+            _socket.Dispose();
+            return ValueTask.CompletedTask;
+        }
+        catch (SocketException e)
+        {
+            return ValueTask.FromException(e);
+        }
+    }
+
+    public override async ValueTask Send(DnsTransportMessage requestMessage, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _socket.SendAsync(requestMessage.Buffer, SocketFlags.None, cancellationToken);
         }
         catch (SocketException e)
         {
@@ -24,11 +44,10 @@ internal sealed class DnsClientUdpTransport(EndPoint remoteEndPoint) : DnsClient
 
     public override async ValueTask<DnsTransportMessage> Receive(CancellationToken cancellationToken)
     {
-        await EnsureConnected(cancellationToken);
         var buffer = DnsBufferPool.Rent(DnsDefaults.MaxUdpMessageSize);
         try
         {
-            var receivedBytes = await Socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
+            var receivedBytes = await _socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
             return new DnsTransportMessage(buffer, receivedBytes);
         }
         catch (SocketException e)

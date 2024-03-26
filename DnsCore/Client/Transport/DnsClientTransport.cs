@@ -20,6 +20,7 @@ internal abstract class DnsClientTransport : IAsyncDisposable
             case DnsTransportType.UDP:
                 return new DnsClientUdpTransport(endPoint);
             case DnsTransportType.TCP:
+                return new DnsClientTcpTransport(endPoint);
             case DnsTransportType.All:
                 throw new NotImplementedException();
             default:

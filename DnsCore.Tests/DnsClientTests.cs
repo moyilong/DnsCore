@@ -94,7 +94,7 @@ public class DnsClientTests
 
     [TestMethod]
     [DataRow(DnsTransportType.UDP)]
-    //[DataRow(DnsTransportType.TCP)]
+    [DataRow(DnsTransportType.TCP)]
     //[DataRow(DnsTransportType.All)]
     public async Task TestDnsClient(DnsTransportType transportType)
     {
