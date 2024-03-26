@@ -1,20 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-using DnsCore.Internal;
+using DnsCore.Client.Transport;
+using DnsCore.Common;
 using DnsCore.Model;
 
 namespace DnsCore.Client;
 
-public sealed class DnsClient : IDisposable, IAsyncDisposable
+public sealed class DnsClient : IAsyncDisposable
 {
-    private readonly EndPoint _serverEndPoint;
     private readonly TimeSpan _requestTimeout;
-    private readonly Socket _socket;
+    private readonly DnsClientTransport _transport;
     private readonly Dictionary<ushort, TaskCompletionSource<DnsResponse>> _pendingRequests = [];
     private readonly ReaderWriterLockSlim _pendingRequestsLock = new();
     private readonly CancellationTokenSource _receiveTaskCancellation = new();
@@ -22,10 +21,8 @@ public sealed class DnsClient : IDisposable, IAsyncDisposable
 
     public DnsClient(EndPoint serverEndPoint, TimeSpan requestTimeout)
     {
-        _serverEndPoint = serverEndPoint;
         _requestTimeout = requestTimeout;
-        _socket = new(serverEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-        _socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+        _transport = DnsClientTransport.Create(DnsTransportType.UDP, serverEndPoint);
         _receiveTask = ReceiveResponses(_receiveTaskCancellation.Token);
     }
 
@@ -35,21 +32,12 @@ public sealed class DnsClient : IDisposable, IAsyncDisposable
     public DnsClient(IPAddress serverAddress, TimeSpan requestTimeout) : this(serverAddress, DnsDefaults.Port, requestTimeout) {}
     public DnsClient(IPAddress serverAddress) : this(serverAddress, DnsDefaults.Port) {}
 
-    public void Dispose()
-    {
-        _receiveTaskCancellation.Cancel();
-        _receiveTask.Wait();
-        _receiveTaskCancellation.Dispose();
-        _socket.Dispose();
-        _pendingRequestsLock.Dispose();
-    }
-
     public async ValueTask DisposeAsync()
     {
         await _receiveTaskCancellation.CancelAsync();
         await _receiveTask;
         _receiveTaskCancellation.Dispose();
-        _socket.Dispose();
+        await _transport.DisposeAsync();
         _pendingRequestsLock.Dispose();
     }
 
@@ -85,7 +73,8 @@ public sealed class DnsClient : IDisposable, IAsyncDisposable
         try
         {
             var len = request.Encode(buffer);
-            await _socket.SendToAsync(buffer.AsMemory(0, len), SocketFlags.None, _serverEndPoint, cancellationToken).ConfigureAwait(false);
+            using var requestMessage = new DnsTransportMessage(buffer, len, false);
+            await _transport.Send(requestMessage, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -96,18 +85,10 @@ public sealed class DnsClient : IDisposable, IAsyncDisposable
     private async Task ReceiveResponses(CancellationToken cancellationToken)
     {
         await Task.Yield();
-        var buffer = DnsBufferPool.Rent(DnsDefaults.MaxUdpMessageSize);
-        try
+        while (true)
         {
-            while (true)
-            {
-                var result = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, _serverEndPoint, cancellationToken).ConfigureAwait(false);
-                CompleteRequest(DnsResponse.Decode(buffer.AsSpan(0, result.ReceivedBytes)));
-            }
-        }
-        finally
-        {
-            DnsBufferPool.Return(buffer);
+            using var responseMessage = await _transport.Receive(cancellationToken).ConfigureAwait(false);
+            CompleteRequest(DnsResponse.Decode(responseMessage.Buffer.Span));
         }
     }
 

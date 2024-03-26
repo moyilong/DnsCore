@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-using DnsCore.Internal;
+using DnsCore.Common;
 
 namespace DnsCore.Server.Transport.Tcp;
 
@@ -22,7 +22,7 @@ internal sealed class DnsTcpServerTransportConnection : DnsServerTransportConnec
 
     public override void Dispose() => _socket.Dispose();
 
-    public override async ValueTask<DnsServerTransportRequest?> Receive(CancellationToken cancellationToken)
+    public override async ValueTask<DnsTransportMessage?> Receive(CancellationToken cancellationToken)
     {
         var lengthBuffer = DnsBufferPool.Rent(2);
         try
@@ -46,7 +46,7 @@ internal sealed class DnsTcpServerTransportConnection : DnsServerTransportConnec
 
                 totalReceivedBytes += receivedBytes;
             }
-            return new DnsServerTransportRequest(requestBuffer, totalReceivedBytes);
+            return new DnsTransportMessage(requestBuffer, totalReceivedBytes);
         }
         catch (SocketException e)
         {
@@ -58,12 +58,13 @@ internal sealed class DnsTcpServerTransportConnection : DnsServerTransportConnec
         }
     }
 
-    public override async ValueTask Send(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+    public override async ValueTask Send(DnsTransportMessage responseMessage, CancellationToken cancellationToken)
     {
         var lengthBuffer = DnsBufferPool.Rent(2);
         try
         {
             var lengthBufferMem = lengthBuffer.AsMemory(0, 2);
+            var buffer = responseMessage.Buffer;
             BinaryPrimitives.WriteUInt16BigEndian(lengthBufferMem.Span, (ushort)buffer.Length);
             await _socket.SendAsync(lengthBufferMem, SocketFlags.None, cancellationToken).ConfigureAwait(false);
             while (!buffer.IsEmpty)
