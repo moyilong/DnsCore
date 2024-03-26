@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 
 using DnsCore.Client;
+using DnsCore.Common;
 using DnsCore.Model;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -92,7 +93,10 @@ public class DnsClientTests
     }
 
     [TestMethod]
-    public async Task TestDnsClient()
+    [DataRow(DnsTransportType.UDP)]
+    //[DataRow(DnsTransportType.TCP)]
+    //[DataRow(DnsTransportType.All)]
+    public async Task TestDnsClient(DnsTransportType transportType)
     {
         var expectedRequest = new DnsRequest(DnsName.Parse("test.com"), DnsRecordType.A);
         DnsRecord expectedAnswer = new DnsAddressRecord(DnsName.Parse("test.com"), IPAddress.Parse("4.3.2.1"), TimeSpan.FromSeconds(42));
@@ -100,7 +104,7 @@ public class DnsClientTests
 
         await WithTestDnsServer(async () =>
         {
-            var client = new DnsClient(IPAddress.Loopback, TestDnsServerPort);
+            var client = new DnsClient(transportType, IPAddress.Loopback, TestDnsServerPort);
 
             var response = await client.Query(expectedRequest);
             Assert.AreEqual(DnsResponseStatus.Ok, response.Status);

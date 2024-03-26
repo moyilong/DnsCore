@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using DnsCore;
 using DnsCore.Client;
+using DnsCore.Common;
 using DnsCore.Model;
 
 var addressOption = new Option<IPAddress>(aliases: ["-s", "--server"], description: "DNS server address")  { IsRequired = true };
@@ -31,7 +32,7 @@ static async Task Run(IPAddress address, ushort? port, DnsRecordType? type, stri
     Console.WriteLine($"Server: {address}:{effectivePort}");
     Console.WriteLine($"Request:\n{request}");
 
-    await using var client = new DnsClient(address, effectivePort);
+    await using var client = new DnsClient(DnsTransportType.UDP,  address, effectivePort);
 
     try
     {

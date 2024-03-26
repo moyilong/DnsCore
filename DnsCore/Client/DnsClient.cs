@@ -19,18 +19,18 @@ public sealed class DnsClient : IAsyncDisposable
     private readonly CancellationTokenSource _receiveTaskCancellation = new();
     private readonly Task _receiveTask;
 
-    public DnsClient(EndPoint serverEndPoint, TimeSpan requestTimeout)
+    public DnsClient(DnsTransportType transportType, EndPoint serverEndPoint, TimeSpan requestTimeout)
     {
         _requestTimeout = requestTimeout;
-        _transport = DnsClientTransport.Create(DnsTransportType.UDP, serverEndPoint);
+        _transport = DnsClientTransport.Create(transportType, serverEndPoint);
         _receiveTask = ReceiveResponses(_receiveTaskCancellation.Token);
     }
 
-    public DnsClient(EndPoint serverEndPoint) : this(serverEndPoint, TimeSpan.FromSeconds(5)) {}
-    public DnsClient(IPAddress serverAddress, ushort port, TimeSpan requestTimeout) : this(new IPEndPoint(serverAddress, port), requestTimeout) {}
-    public DnsClient(IPAddress serverAddress, ushort port) : this(new IPEndPoint(serverAddress, port)) {}
-    public DnsClient(IPAddress serverAddress, TimeSpan requestTimeout) : this(serverAddress, DnsDefaults.Port, requestTimeout) {}
-    public DnsClient(IPAddress serverAddress) : this(serverAddress, DnsDefaults.Port) {}
+    public DnsClient(DnsTransportType transportType, EndPoint serverEndPoint) : this(transportType, serverEndPoint, TimeSpan.FromSeconds(5)) {}
+    public DnsClient(DnsTransportType transportType, IPAddress serverAddress, ushort port, TimeSpan requestTimeout) : this(transportType, new IPEndPoint(serverAddress, port), requestTimeout) {}
+    public DnsClient(DnsTransportType transportType, IPAddress serverAddress, ushort port) : this(transportType, new IPEndPoint(serverAddress, port)) {}
+    public DnsClient(DnsTransportType transportType, IPAddress serverAddress, TimeSpan requestTimeout) : this(transportType, serverAddress, DnsDefaults.Port, requestTimeout) {}
+    public DnsClient(DnsTransportType transportType, IPAddress serverAddress) : this(transportType, serverAddress, DnsDefaults.Port) {}
 
     public async ValueTask DisposeAsync()
     {
