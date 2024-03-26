@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -24,7 +25,7 @@ internal sealed class DnsClientUdpTransport : DnsClientSocketTransport
             _socket.Dispose();
             return ValueTask.CompletedTask;
         }
-        catch (SocketException e)
+        catch (Exception e)
         {
             return ValueTask.FromException(e);
         }
@@ -34,9 +35,9 @@ internal sealed class DnsClientUdpTransport : DnsClientSocketTransport
     {
         try
         {
-            await _socket.SendAsync(requestMessage.Buffer, SocketFlags.None, cancellationToken);
+            await _socket.SendUdpMessage(requestMessage, cancellationToken).ConfigureAwait(false);
         }
-        catch (SocketException e)
+        catch (DnsSocketException e)
         {
             throw new DnsClientTransportException("Failed to send request", e);
         }
@@ -44,13 +45,11 @@ internal sealed class DnsClientUdpTransport : DnsClientSocketTransport
 
     public override async ValueTask<DnsTransportMessage> Receive(CancellationToken cancellationToken)
     {
-        var buffer = DnsBufferPool.Rent(DnsDefaults.MaxUdpMessageSize);
         try
         {
-            var receivedBytes = await _socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken);
-            return new DnsTransportMessage(buffer, receivedBytes);
+            return await _socket.ReceiveUdpMessage(cancellationToken).ConfigureAwait(false);
         }
-        catch (SocketException e)
+        catch (DnsSocketException e)
         {
             throw new DnsClientTransportException("Failed to receive response", e);
         }
